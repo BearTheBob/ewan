@@ -5,43 +5,73 @@ import javax.swing.SwingConstants;
 import net.proteanit.sql.DbUtils;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.JOptionPane;
 
 public class DB_homepage extends javax.swing.JFrame {
-    Connection conn = null;
-    PreparedStatement ps = null;
-    ResultSet rs = null;
+    private Connection conn = null;
+    private PreparedStatement ps = null;
+    private ResultSet rs = null;
+    private int currentPage = 0;  // Track current page (0-based index)
+    private int totalRows = 0;    // Track total number of rows
     
     public void refresh(){
-            try{  
+            try {
             conn = connection.connect();
-            ps = conn.prepareStatement(
-                    "SELECT \n" +
-                    "    p.p_id AS 'ID',\n" +
-                    "    CONCAT(p.l_name, ', ', p.f_name, ' ', p.m_name) AS 'Full Name',\n" +
-                    "    s.sex_desc AS 'Gender',  -- Joining sex table for gender_name\n" +
-                    "    p.dob AS 'Birthday',\n" +
-                    "    c.cstat_desc AS 'Civil Status'  -- Joining civil_status table for status_name\n" +
-                    "FROM \n" +
-                    "    personal_info p\n" +
-                    "JOIN \n" +
-                    "    ref_sex s ON p.sex_id = s.sex_id  -- Join with the sex table\n" +
-                    "JOIN \n" +
-                    "    ref_civilstatus c ON p.cstat_id = c.cstat_id;  -- Join with the civil_status table");
-                                rs = ps.executeQuery();
+            
+            // Get total rows for pagination (this query counts all the rows)
+            String countQuery = "SELECT COUNT(*) FROM personal_info";
+            ps = conn.prepareStatement(countQuery);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                totalRows = rs.getInt(1);
+            }
+            
+            // Fetch 10 rows based on the current page
+            String query = "SELECT p.p_id AS 'ID', CONCAT(p.l_name, ', ', p.f_name, ' ', p.m_name) AS 'Full Name', " +
+                           "s.sex_desc AS 'Gender', p.dob AS 'Birthday', c.cstat_desc AS 'Civil Status' " +
+                           "FROM personal_info p " +
+                           "JOIN ref_sex s ON p.sex_id = s.sex_id " +
+                           "JOIN ref_civilstatus c ON p.cstat_id = c.cstat_id " +
+                           "ORDER BY p.p_id " +
+                           "LIMIT 40 OFFSET ?";
+            ps = conn.prepareStatement(query);
+            ps.setInt(1, currentPage * 10); // Offset based on the current page
+            rs = ps.executeQuery();
+            
+            // Set the result set to the table model
             tblEntries.setModel(DbUtils.resultSetToTableModel(rs));
+            
+            // Customize the table header
             JTableHeader tblHeader = tblEntries.getTableHeader();
             DefaultTableCellRenderer tblRenderer = (DefaultTableCellRenderer) tblHeader.getDefaultRenderer();
+            tblRenderer.setHorizontalAlignment(SwingConstants.CENTER); // Sets horizontal alignment
+            tblHeader.setBackground(new Color(54, 79, 107));  // Sets background color
+            tblHeader.setForeground(Color.WHITE);  // Sets font color
+            tblHeader.setFont(new Font("Century Gothic", Font.BOLD, 12));  // Sets font family and size
             
-            tblRenderer.setHorizontalAlignment(SwingConstants.CENTER);          //Sets horizontal alignment
-            tblHeader.setBackground(new Color(54, 79, 107));                    //Sets bg color
-            tblHeader.setForeground(Color.WHITE);                               //Sets font color
-            tblHeader.setFont(new Font("Century Gothic", Font.BOLD, 12));       //Sets font family and size
-            }catch(Exception e)
-            {
-                System.out.println(e);
-            }
+        } catch (Exception e) {
+            e.printStackTrace();  // Better error handling
+        }
     }
-   
+    private void deleteEntry(int p_id) {
+    try {
+        conn = connection.connect();  // Establish a connection to the database
+
+        // Step 2: Delete the entry from the personal_info table
+        String deletePersonalQuery = "DELETE FROM personal_info WHERE p_id = ?";
+        ps = conn.prepareStatement(deletePersonalQuery);
+        ps.setInt(1, p_id);
+        ps.executeUpdate();
+
+        JOptionPane.showMessageDialog(this, "Entry deleted successfully.");
+        
+        // Refresh the table data after deletion
+        refresh();  // This method reloads the data into the table
+    } catch (SQLException e) {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(this, "Error deleting the entry: " + e.getMessage());
+    }
+}
     public DB_homepage() {
      initComponents();
      this.setLocationRelativeTo(null);
@@ -55,10 +85,18 @@ public class DB_homepage extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
+        jLabel2 = new javax.swing.JLabel();
         jScrollPane1 = new javax.swing.JScrollPane();
         tblEntries = new javax.swing.JTable();
-        jPanel1 = new javax.swing.JPanel();
         jLabel1 = new javax.swing.JLabel();
+        btnNextPage = new javax.swing.JButton();
+        btnPrevPage = new javax.swing.JButton();
+        btnViewEntry = new javax.swing.JButton();
+        btnDelEntry = new javax.swing.JButton();
+        btnAddEntry = new javax.swing.JButton();
+        l_name_search_bar = new javax.swing.JTextField();
+
+        jLabel2.setText("jLabel2");
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -80,47 +118,105 @@ public class DB_homepage extends javax.swing.JFrame {
         ));
         jScrollPane1.setViewportView(tblEntries);
 
-        javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
-        jPanel1.setLayout(jPanel1Layout);
-        jPanel1Layout.setHorizontalGroup(
-            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 809, Short.MAX_VALUE)
-        );
-        jPanel1Layout.setVerticalGroup(
-            jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 114, Short.MAX_VALUE)
-        );
-
+        jLabel1.setFont(new java.awt.Font("Gotham Bold", 0, 24)); // NOI18N
         jLabel1.setText("PDS MANAGEMENT SYSTEM");
+
+        btnNextPage.setText("Next Page");
+        btnNextPage.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnNextPageActionPerformed(evt);
+            }
+        });
+
+        btnPrevPage.setText("Previous Page");
+        btnPrevPage.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnPrevPageActionPerformed(evt);
+            }
+        });
+
+        btnViewEntry.setText("VIEW ENTRY");
+
+        btnDelEntry.setText("REMOVE ENTRY");
+        btnDelEntry.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                btnDelEntryMouseClicked(evt);
+            }
+        });
+        btnDelEntry.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnDelEntryActionPerformed(evt);
+            }
+        });
+
+        btnAddEntry.setText("ADD ENTRY");
+        btnAddEntry.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnAddEntryActionPerformed(evt);
+            }
+        });
+
+        l_name_search_bar.setText("Search for last name...");
+        l_name_search_bar.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                l_name_search_barMouseClicked(evt);
+            }
+        });
+        l_name_search_bar.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                l_name_search_barActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jScrollPane1)
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(117, 117, 117)
-                        .addComponent(jLabel1)
-                        .addGap(86, 86, 86)
-                        .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
-                .addContainerGap())
+                        .addGap(31, 31, 31)
+                        .addComponent(jLabel1))
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(17, 17, 17)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(l_name_search_bar, javax.swing.GroupLayout.PREFERRED_SIZE, 207, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(btnPrevPage)
+                                .addGap(18, 18, 18)
+                                .addComponent(btnNextPage, javax.swing.GroupLayout.PREFERRED_SIZE, 104, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 1024, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(34, 34, 34)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                            .addComponent(btnAddEntry, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(btnViewEntry, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(btnDelEntry, javax.swing.GroupLayout.PREFERRED_SIZE, 206, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                .addContainerGap(36, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
+                .addGap(22, 22, 22)
+                .addComponent(jLabel1)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(165, 165, 165)
+                        .addComponent(btnViewEntry, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(btnAddEntry, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(btnDelEntry, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap(191, Short.MAX_VALUE))
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(33, 33, 33)
-                        .addComponent(jLabel1)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 377, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(173, Short.MAX_VALUE))
+                        .addComponent(jScrollPane1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(l_name_search_bar, javax.swing.GroupLayout.PREFERRED_SIZE, 44, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(btnPrevPage, javax.swing.GroupLayout.PREFERRED_SIZE, 43, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(btnNextPage, javax.swing.GroupLayout.PREFERRED_SIZE, 43, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(11, 11, 11))))
         );
 
         pack();
@@ -129,6 +225,56 @@ public class DB_homepage extends javax.swing.JFrame {
     private void formWindowActivated(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowActivated
         refresh();
     }//GEN-LAST:event_formWindowActivated
+
+    private void btnNextPageActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnNextPageActionPerformed
+        if ((currentPage + 1) * 40 < totalRows) {
+            currentPage++; // Move to the next page
+            refresh();    // Reload the data for the next page
+        }
+    }//GEN-LAST:event_btnNextPageActionPerformed
+
+    private void btnPrevPageActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPrevPageActionPerformed
+       if (currentPage > 0) {
+            currentPage--; // Move to the previous page
+            refresh();    // Reload the data for the previous page
+        }
+    }//GEN-LAST:event_btnPrevPageActionPerformed
+    
+    private void btnDelEntryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnDelEntryActionPerformed
+         int selectedRow = tblEntries.getSelectedRow();
+    
+    if (selectedRow != -1) {
+        // Get the p_id of the selected row (assuming p_id is in the first column)
+        int p_id = (int) tblEntries.getValueAt(selectedRow, 0);  // Column 0 is for ID
+        
+        // Ask for confirmation before deletion
+        int confirmation = JOptionPane.showConfirmDialog(this, 
+                "Are you sure you want to delete this entry?", 
+                "Delete Confirmation", JOptionPane.YES_NO_OPTION);
+        
+        if (confirmation == JOptionPane.YES_OPTION) {
+            deleteEntry(p_id);  // Call the method to delete the entry from the database
+        }
+    } else {
+        JOptionPane.showMessageDialog(this, "Please select a row to delete.");
+    }
+    }//GEN-LAST:event_btnDelEntryActionPerformed
+
+    private void btnAddEntryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAddEntryActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_btnAddEntryActionPerformed
+
+    private void l_name_search_barActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_l_name_search_barActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_l_name_search_barActionPerformed
+
+    private void l_name_search_barMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_l_name_search_barMouseClicked
+        // TODO add your handling code here:
+    }//GEN-LAST:event_l_name_search_barMouseClicked
+
+    private void btnDelEntryMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_btnDelEntryMouseClicked
+
+    }//GEN-LAST:event_btnDelEntryMouseClicked
 
     /**
      * @param args the command line arguments
@@ -165,9 +311,15 @@ public class DB_homepage extends javax.swing.JFrame {
         });
     }
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnAddEntry;
+    private javax.swing.JButton btnDelEntry;
+    private javax.swing.JButton btnNextPage;
+    private javax.swing.JButton btnPrevPage;
+    private javax.swing.JButton btnViewEntry;
     private javax.swing.JLabel jLabel1;
-    private javax.swing.JPanel jPanel1;
+    private javax.swing.JLabel jLabel2;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTextField l_name_search_bar;
     private javax.swing.JTable tblEntries;
     // End of variables declaration//GEN-END:variables
 }
